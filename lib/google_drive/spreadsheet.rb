@@ -66,38 +66,13 @@ module GoogleDrive
       worksheets.find { |ws| ws.gid == gid }
     end
 
-    def add_worksheet_from_template(title)
-      # get access token and client_key(id) from  @session
-      auth_data = @session.drive.request_options.authorization
-      access_token = auth_data.access_token # client_id
-      client_id = auth_data.client_id
-
+    def add_worksheet_from_template(title, template_file_name = 'template')
       # find template key
-      template_sheet = worksheet_by_title('template')
+      template_sheet = worksheet_by_title(template_file_name)
       template_sheet_id = template_sheet.gid
       # set sheet key
-      spreadsheetId = template_sheet.spreadsheet.api_file.id
-
-      # create new work sheet from (template)key
-      # set uri
-      url = "https://sheets.googleapis.com/v4/spreadsheets/#{spreadsheetId}/sheets/#{template_sheet_id}:copyTo?key=#{client_id}"
-      uri = URI.parse(url)
-
-      # create sheme
-      header = {
-        'Authorization' => "Bearer #{access_token}",
-        'Content-Type' => 'application/json'
-      }
-
-      body = {
-        'destinationSpreadsheetId' => spreadsheetId
-      }.to_json
-
-      https = Net::HTTP.new(uri.host, uri.port)
-      https.use_ssl = true
-      req = Net::HTTP::Post.new(uri.path, header)
-      req.body = body
-      p res = https.request(req)
+      spreadsheet_id = template_sheet.spreadsheet.api_file.id
+      res = @sheet_api.copy_to(spreadsheet_id, template_sheet_id, spreadsheet_id)
       new_sheet_id = JSON::parse(res.body)['sheetId']
       # select new worksheet
       new_work_sheet = worksheet_by_gid(new_sheet_id)
@@ -121,6 +96,13 @@ module GoogleDrive
           EOS
       doc = @session.request(:post, worksheets_feed_url, data: xml)
       Worksheet.new(@session, self, doc.root)
+    end
+
+    # https://developers.google.com/sheets/reference/rest/v4/spreadsheets.sheets/copyTo
+    def copy_to(spreadsheet_id, sheet_id, destination_spreadsheet_id)
+      res = @sheet_api.copy_to(spreadsheet_id, sheet_id, destination_spreadsheet_id)
+      new_sheet_id = JSON::parse(res.body)['sheetId']
+      worksheet_by_gid(new_sheet_id) # return new worksheet
     end
   end
 end
